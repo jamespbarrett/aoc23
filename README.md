@@ -1,7 +1,7 @@
 Advent of Code 2023 -- in gate level VHDL
 =========================================
 
-Day1 - Puzzle 1
+Day1 - Puzzle 2
 ---------------
 
 This is a tricky problem. The input is provided as a text file. How are we going to feed that into hardware?
@@ -34,10 +34,11 @@ will create the file `day1_tb.ghw`. This is a [gtkwave](https://gtkwave.sourcefo
 
 * The unit `digit` outputs a '1' when the input bits are an ascii digit (0-9), and '0' the rest of the time.
 * The unit `newline` outputs a '1' when the input bits are an ascii line-feed and '0' the rest of the time.
-* The value of the least significant 4 bits of the input are stored into the `last_digit` register on any clock-tick when the input is a digit, and `"000"` is stored on any clock cycle where the input is a line-feed.
-* The register `has_first` is initially set to '0', and set to '1' on any clock cycle when it is '0' and the input is a digit. It is reset to '0' on any clock cycle where the input is a line-feed.
-* The value of the least significant 4 bits of the input are stored into the `first_digit` register on any clock cycle when the input is a digit *and* the value in `has_first` is '0'. It is rest to `"0000"` on any clock cycle where the input is a line-feed.
-* The 20-bit register `accum` is initially set to all 0s, and set to the current value of `sum` on any clock-cycle where the input is a line-feed.
+* The unit `dec` will provide a digit output and an enable signal one cycle after the last character of a written digit.
+* The value of the least significant 4 bits of the input on the previous clock cycle if the enable signal from `dec` is not high, and otherwise the digit output from `dec` are stored into the `last_digit` register on any clock-tick when the input was a digit last cycle or the enable signal from `dec` is high, and `"000"` is stored on any clock cycle where the input wass a line-feed in the previous cycle.
+* The register `has_first` is initially set to '0', and set to '1' on any clock cycle when it is '0' and the input was a digit the previous cycle or the enable signal from `dec` is high. It is reset to '0' on any clock cycle where the input was a line-feed on the previous cycle.
+* The value of the least significant 4 bits of the input on the previous cycle if the enable signal from `dec` is not high, and otherwise the digit output from `dec` are stored into the `first_digit` register on any clock cycle when the input was a digit in the previous cycle or the enable signal from `dec` is high *and* the value in `has_first` is '0'. It is rest to `"0000"` on any clock cycle where the input wass a line-feed on the previous cycle.
+* The 20-bit register `accum` is initially set to all 0s, and set to the current value of `sum` on any clock-cycle where the input wass a line-feed on the previous cycle.
 * The value of `sum` is the result of the BCD-sum of the current value of `accum` and the BCD value represented by `first_digit & last_digit`.
 * The signal `is_zero` is '1' whenever the input is a null byte, and '0' otherwise.
 * The register `is_zero_z1` is set to the value of `is_zero` on ever clock cycle.
@@ -45,6 +46,18 @@ will create the file `day1_tb.ghw`. This is a [gtkwave](https://gtkwave.sourcefo
 * The register `outreg` is initially set to '0'. It is set to the current value of the `accum` register whever `start_output` is '1'. On any clock cycle where `start_output` is zero the values in the register are shifted up by 4 bits.
 * The register `outactive` is 5 bits long. It's set to '0' initially. It is set to all '1's whenever `start_output` is '1'. It is shifted down by one bit every clock cycle when `start_output` is '0'.
 * The output of the chip is a null byte when the value of the least significant bit of `outactive` is '0' and "0011" concatenated with the top 4 bits of `outreg` whenever the least significant bit of `outactive` is '1'.
+
+The delays of one cycle are necessary to make the results line up correctly with the output of the `dec` unit.
+
+### How does dec work?
+
+The decoder works by the use of a simple array of `strdet` units. Each of these units contains a sequence of `chardet` units. A `chardet` unit has a signal that is raised high whenever the input is equal to a specified character value. The `strdet` unit has a vector of bits, one for each character in the string, each bit in the register is set to '1' on every clock cycle where the signal from the corresponding `chardet` is '1' *and* the previous bit in the register is '1' (or it's the first bit in the register), otherwise it is set to '0'. The output of the `strdet` is the value of the last bit of the bit vector.
+
+In this way the bit rises to '1' on the clock cycle *following* the cycle in which `input` contained the last character of the written digit string.
+
+The `dec` unit thus has a set of enable signals, one for each digit one-nine. To convert this to a simple enable signal is a matter of a simple cascade of or gates. But creating the digit value output is slightly more complex.
+
+The trick here is that each bit of the output is driven by a set of or gates combining those individual digit enable signals for which that bit of the digit value would be high.
 
 ### How does the BCD-sum work?
 

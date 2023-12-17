@@ -21,6 +21,8 @@ architecture rtl of day1 is
     end component;
 
     signal is_digit: std_logic;
+    signal is_digit_z1: std_logic;
+    signal input_z1 : std_logic_vector(3 downto 0);
 
     component newline
         port(
@@ -30,6 +32,36 @@ architecture rtl of day1 is
     end component;
 
     signal is_newline: std_logic;
+    signal is_newline_z1: std_logic;
+
+    component dec
+        port(
+            clock : std_logic;
+            reset : std_logic;
+    
+            I : in std_logic_vector(7 downto 0);
+            O : out std_logic_vector(3 downto 0);
+            EN : out std_logic
+        );
+    end component;
+
+    signal dec_O : std_logic_vector(3 downto 0);
+    signal dec_en : std_logic;
+    signal dig_val : std_logic_vector(3 downto 0);
+
+    component sel
+        generic (
+            N : integer := 1
+        );
+        port(
+            A : in std_logic_vector(N - 1 downto 0);
+            B : in std_logic_vector(N - 1 downto 0);
+            S : in std_logic;
+            Q : out std_logic_vector(N - 1 downto 0)
+        );
+    end component;
+
+    signal dig_en : std_logic;
 
     signal first_digit: std_logic_vector(3 downto 0);
     signal last_digit: std_logic_vector(3 downto 0);
@@ -99,11 +131,57 @@ begin
     process(clock)
     begin
         if rising_edge(clock) then
-            if (not reset or is_newline) = '1' then
+            if reset = '0' then
+                is_newline_z1 <= '0';
+            else
+                is_newline_z1 <= is_newline;
+            end if;
+        end if;
+    end process;
+
+    DEC_I: dec 
+    port map (
+        clock => clock,
+        reset => reset,
+        I => input,
+        O => dec_O,
+        EN => dec_en
+    );
+
+    process(clock)
+    begin
+        if rising_edge(clock) then
+            if reset = '0' then
+                input_z1 <= (others => '0');
+                is_digit_z1 <= '0';
+            else
+                input_z1 <= input(3 downto 0);
+                is_digit_z1 <= is_digit;
+            end if;
+        end if;
+    end process;
+
+    SELDIG: sel
+    generic map (
+        N => 4
+    )
+    port map(
+        A => input_z1,
+        B => dec_O,
+        S => dec_en,
+        Q => dig_val
+    );
+
+    dig_en <= is_digit_z1 or dec_en;
+
+    process(clock)
+    begin
+        if rising_edge(clock) then
+            if (not reset or is_newline_z1) = '1' then
                 first_digit <= (others => '0');
                 has_first <= '0';
-            elsif (is_digit and not has_first) = '1' then
-                first_digit <= input(3 downto 0);
+            elsif (dig_en and not has_first) = '1' then
+                first_digit <= dig_val;
                 has_first <= '1';
             end if;
         end if;
@@ -112,10 +190,10 @@ begin
     process(clock)
     begin
         if rising_edge(clock) then
-            if (not reset or is_newline) = '1' then
+            if (not reset or is_newline_z1) = '1' then
                 last_digit <= (others => '0');
-            elsif is_digit = '1' then
-                last_digit <= input(3 downto 0);
+            elsif dig_en = '1' then
+                last_digit <= dig_val;
             end if;
         end if;
     end process;
@@ -159,7 +237,7 @@ begin
         if rising_edge(clock) then
             if reset = '0' then
                 accum <= (others => '0');
-            elsif is_newline = '1' then
+            elsif is_newline_z1 = '1' then
                 accum <= sum;
             end if;
         end if;

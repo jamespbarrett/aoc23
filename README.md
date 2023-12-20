@@ -75,3 +75,24 @@ For the higher order digits of the BCD sum there is no need to use the full `BCD
 
 
 
+Day 2 -- Puzzle 1
+-----------------
+
+Ok, this looks doable using the same units as day 1 arranged a little differently.
+
+So the basic architecture here is again reading in streams of asci characters one clock tick at a time, detecting digits, and detecting certain strings.
+
+This time we keep a BCD counter of the game number (we ignore the game number in the file, this is just line number +1), and we have a detected most recent pair of digits stored in a register.
+
+Whenever the string detectors detect a colour name they trigger the most recent digit pair to be stored in a register for that colour.
+
+Whenever a comma or semicolon is detected the most-recent digits register is reset.
+
+Whenever a semi-colon is encountered the three colour amount registers are reset.
+
+A new BCDGT unit compares the values in the colour registers against the expected values and determines if the current round is possible.
+
+We have a `game_ok` register which resets to '1' at the start of each line, and is set to '0' any time the game_ok value is '0'.
+
+Finally we reuse the BCD adders from the previous day's problem, but this time the value we add is the game number, and the only time we add is when `game_ok` was high at the detection of a newline.
+
